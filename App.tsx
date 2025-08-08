@@ -17,7 +17,7 @@ const initialInvestors: Investor[] = [
 const initialDeals: Deal[] = [
   {
     id: 'deal1',
-    name: 'Commercial Property Alpha',
+    name: 'Property Alpha',
     isActive: true,
     participants: [
       { investorId: 'lp1', amount: 750000 },
