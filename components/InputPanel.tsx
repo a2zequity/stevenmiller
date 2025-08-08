@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Investor, Deal } from '../types';
 import { PlusCircle, Trash2, UserPlus, ChevronDown, ChevronRight, HelpCircle, AlertTriangle } from 'lucide-react';
+import { useAppStore } from '../store';
 
 // --- Reusable Components ---
 
@@ -51,11 +52,11 @@ const NumberInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
 interface DealSettingsProps {
     deal: Deal;
     allLPs: Investor[];
-    updateDeal: (id: string, newDeal: Partial<Deal>) => void;
-    removeDeal: (id: string) => void;
 }
 
-const DealSettings: React.FC<DealSettingsProps> = ({ deal, allLPs, updateDeal, removeDeal }) => {
+const DealSettings: React.FC<DealSettingsProps> = ({ deal, allLPs }) => {
+    const { updateDeal, removeDeal } = useAppStore();
+
     const handleFieldChange = (field: keyof Deal, value: any) => {
         updateDeal(deal.id, { [field]: value });
     };
@@ -91,9 +92,8 @@ const DealSettings: React.FC<DealSettingsProps> = ({ deal, allLPs, updateDeal, r
         updateDeal(deal.id, { actualAnnualReturns: newReturns });
     };
 
-
     return (
-        <Accordion title={<EditableDealTitle deal={deal} updateDeal={updateDeal} removeDeal={removeDeal} />}>
+        <Accordion title={<EditableDealTitle deal={deal} />}>
             <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                      <InputGroup label="Timeline (Yrs)">
@@ -197,7 +197,9 @@ const DealSettings: React.FC<DealSettingsProps> = ({ deal, allLPs, updateDeal, r
     );
 };
 
-const EditableDealTitle: React.FC<{deal: Deal, updateDeal: (id: string, newDeal: Partial<Deal>) => void, removeDeal: (id: string) => void}> = ({deal, updateDeal, removeDeal}) => {
+const EditableDealTitle: React.FC<{deal: Deal}> = ({deal}) => {
+    const { updateDeal, removeDeal } = useAppStore();
+
     return (
         <div className="flex items-center gap-4 w-full">
             <label htmlFor={`deal-active-${deal.id}`} className="flex items-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
@@ -229,71 +231,15 @@ const EditableDealTitle: React.FC<{deal: Deal, updateDeal: (id: string, newDeal:
 
 // --- Main Component ---
 
-interface InputPanelProps {
-    investors: Investor[];
-    deals: Deal[];
-    setInvestors: React.Dispatch<React.SetStateAction<Investor[]>>;
-    setDeals: React.Dispatch<React.SetStateAction<Deal[]>>;
-}
-
-export const InputPanel: React.FC<InputPanelProps> = ({ investors, deals, setInvestors, setDeals }) => {
+export const InputPanel: React.FC = () => {
+    const { investors, deals, addInvestor, updateInvestor, removeInvestor, addDeal } = useAppStore();
+    
     const lps = investors.filter(inv => !inv.isGP);
     const gps = investors.filter(inv => inv.isGP);
-    
-    const updateInvestor = (id: string, newInvestor: Partial<Investor>) => {
-        setInvestors(prev => prev.map(inv => inv.id === id ? { ...inv, ...newInvestor } : inv));
-    };
-
-    const addInvestor = (isGP: boolean) => {
-        const newInvestor: Investor = {
-            id: `inv_${Date.now()}`,
-            name: isGP ? `New GP ${gps.length + 1}` : `New LP ${lps.length + 1}`,
-            isGP,
-            commitment: 0,
-            gpCarryPercentage: isGP ? 0 : undefined,
-        };
-        setInvestors(prev => [...prev, newInvestor]);
-    };
-
-    const removeInvestor = (id: string) => {
-        setInvestors(prev => prev.filter(inv => inv.id !== id));
-        // Also remove from deal participants
-        setDeals(prevDeals => prevDeals.map(deal => ({
-            ...deal,
-            participants: deal.participants.filter(p => p.investorId !== id)
-        })));
-    };
-
-    const addDeal = () => {
-        const newDeal: Deal = {
-            id: `deal_${Date.now()}`,
-            name: `New Deal ${deals.length + 1}`,
-            isActive: true,
-            participants: [],
-            projectedAnnualReturn: 10,
-            actualAnnualReturns: Array(5).fill(null),
-            managementFee: 0,
-            timelineYears: 5,
-            preferredReturn: 8,
-            gpCatchUp: { applies: true, percentage: 100, hurdle: 10 },
-            firstTier: { split: { lp: 80, gp: 20 }, hurdle: 15 },
-            secondTier: { split: { lp: 60, gp: 40 } },
-        };
-        setDeals(prev => [...prev, newDeal]);
-    };
-
-    const updateDeal = (id: string, newDealData: Partial<Deal>) => {
-        setDeals(prev => prev.map(d => d.id === id ? { ...d, ...newDealData } : d));
-    };
-
-    const removeDeal = (id: string) => {
-        setDeals(prev => prev.filter(d => d.id !== id));
-    };
     
     const totalGpCarry = gps.reduce((sum, gp) => sum + (gp.gpCarryPercentage || 0), 0);
     const totalCommitted = lps.reduce((sum, lp) => sum + lp.commitment, 0);
     const totalAllocated = deals.reduce((sum, deal) => sum + deal.participants.reduce((s, p) => s + p.amount, 0), 0);
-
 
     return (
         <div className="h-full overflow-y-auto p-6 bg-slate-50 no-print">
@@ -305,7 +251,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({ investors, deals, setInv
                 <div className="mb-4">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="font-semibold text-slate-700">General Partners</h3>
-                        <button onClick={() => addInvestor(true)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                        <button onClick={() => addInvestor({ id: `gp_${Date.now()}`, name: `New GP ${gps.length + 1}`, isGP: true, commitment: 0, gpCarryPercentage: 0 })} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">
                             <UserPlus size={16}/> Add GP
                         </button>
                     </div>
@@ -327,7 +273,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({ investors, deals, setInv
                 <div>
                      <div className="flex justify-between items-center mb-2">
                         <h3 className="font-semibold text-slate-700">Limited Partners</h3>
-                        <button onClick={() => addInvestor(false)} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                        <button onClick={() => addInvestor({ id: `lp_${Date.now()}`, name: `New LP ${lps.length + 1}`, isGP: false, commitment: 0 })} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">
                             <UserPlus size={16}/> Add LP
                         </button>
                     </div>
@@ -354,10 +300,26 @@ export const InputPanel: React.FC<InputPanelProps> = ({ investors, deals, setInv
             </Accordion>
 
             {deals.map(deal => (
-                <DealSettings key={deal.id} deal={deal} allLPs={lps} updateDeal={updateDeal} removeDeal={removeDeal} />
+                <DealSettings key={deal.id} deal={deal} allLPs={lps} />
             ))}
 
-            <button onClick={addDeal} className="w-full flex items-center justify-center gap-2 p-3 text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors">
+            <button onClick={() => {
+                const newDeal: Deal = {
+                    id: `deal_${Date.now()}`,
+                    name: `New Deal ${deals.length + 1}`,
+                    isActive: true,
+                    participants: [],
+                    projectedAnnualReturn: 10,
+                    actualAnnualReturns: Array(5).fill(null),
+                    managementFee: 0,
+                    timelineYears: 5,
+                    preferredReturn: 8,
+                    gpCatchUp: { applies: true, percentage: 100, hurdle: 10 },
+                    firstTier: { split: { lp: 80, gp: 20 }, hurdle: 15 },
+                    secondTier: { split: { lp: 60, gp: 40 } },
+                };
+                addDeal(newDeal);
+            }} className="w-full flex items-center justify-center gap-2 p-3 text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors">
                 <PlusCircle size={20} /> Add New Deal
             </button>
         </div>
